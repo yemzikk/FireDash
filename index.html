@@ -989,13 +989,13 @@
             </div>
 
             <div class="security-notice">
-                <div class="notice-title">&#9888; Local Storage Notice</div>
-                <p>Your API URL and token are saved in your browser's local storage. They never leave your device and are only sent directly to your Firefly III server. However, anyone with access to this browser can view them. Use a dedicated read-only token if possible, and clear your data when using shared computers.</p>
+                <div class="notice-title">&#9888; How your data is handled</div>
+                <p>Your URL and token are saved <strong>only in this browser's local storage</strong> and are never stored on our server. API requests are routed through a secure server-side proxy that forwards them to your Firefly III instance without logging or storing data. Use a <strong>read-only token</strong> for extra safety. Clear your data when using shared computers.</p>
             </div>
 
             <div class="cors-notice">
-                <div class="notice-title">&#9432; CORS Configuration</div>
-                <p>Since this app runs in your browser, your Firefly III instance must allow cross-origin requests. Set <code>ALLOW_WEBHOOKS=true</code> and add this page's origin to <code>TRUSTED_PROXIES</code> in your Firefly III <code>.env</code> file, or host this page on the same domain as Firefly III.</p>
+                <div class="notice-title">&#9432; How it works</div>
+                <p>Your browser sends requests to this site's built-in proxy, which securely forwards them to your Firefly III server. This avoids browser cross-origin restrictions without requiring any configuration on your Firefly III instance. Your Firefly III URL must be accessible over <strong>HTTPS</strong>.</p>
             </div>
         </div>
         <div class="drawer-footer">
@@ -1149,12 +1149,18 @@
 
         // ===================== API =====================
         async function api(endpoint, params = {}) {
-            const url = new URL(state.url + endpoint);
-            Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-            const resp = await fetch(url.toString(), {
+            // Built-in proxy: requests go to /proxy/<endpoint> on the same origin,
+            // with X-Target-Base telling the Worker where to forward.
+            // This avoids all CORS issues when hosted on Cloudflare Pages.
+            const proxyPath = '/proxy' + endpoint;
+            const fetchUrl = new URL(proxyPath, window.location.origin);
+            Object.entries(params).forEach(([k, v]) => fetchUrl.searchParams.set(k, v));
+
+            const resp = await fetch(fetchUrl.toString(), {
                 headers: {
                     'Authorization': `Bearer ${state.token}`,
                     'Accept': 'application/json',
+                    'X-Target-Base': state.url,
                 },
             });
             if (!resp.ok) {
@@ -1319,7 +1325,7 @@
                 state.loading = false;
                 state.connected = false;
                 render();
-                toast('Failed to connect. Check your URL, token, and CORS settings.', 'error');
+                toast('Failed to connect. Check your URL and token.', 'error');
                 return;
             }
 
@@ -1361,7 +1367,7 @@
                     <div class="setup-card" style="margin-top:60px">
                         <div class="setup-icon" style="background:linear-gradient(135deg,#ef4444,#f87171)">&#9888;</div>
                         <h2>Connection Failed</h2>
-                        <p>Could not reach your Firefly III instance. Please check your URL, API token, and ensure CORS is configured to allow requests from this origin.</p>
+                        <p>Could not reach your Firefly III instance. Please verify that your URL is correct, uses HTTPS, and that your personal access token is valid.</p>
                         <button class="btn btn-primary" onclick="document.getElementById('settingsBtn').click()">Open Settings</button>
                     </div>
                 `;
@@ -1396,12 +1402,8 @@
                         Connect
                     </button>
                     <div class="security-notice">
-                        <div class="notice-title">&#9888; Local Storage Notice</div>
-                        <p>Your API URL and token will be stored in this browser's local storage. They never leave your device and are sent only to your Firefly III server. However, anyone with access to this browser can view them. Consider using a <strong>read-only token</strong> for extra safety, and always clear data when on shared computers.</p>
-                    </div>
-                    <div class="cors-notice">
-                        <div class="notice-title">&#9432; CORS Configuration Required</div>
-                        <p>Your Firefly III server must accept requests from this page's origin. Either host this file on the same domain, or configure CORS headers in your Firefly III <code>.env</code> file.</p>
+                        <div class="notice-title">&#9888; How your data is handled</div>
+                        <p>Your URL and token are saved <strong>only in this browser's local storage</strong>. They are never stored on our server. API requests are routed through a secure server-side proxy to avoid browser restrictions &mdash; the proxy forwards your request to your Firefly III instance and does not log or store any data. Use a <strong>read-only token</strong> for extra safety, and always clear your data on shared computers.</p>
                     </div>
                 </div>
             `;
