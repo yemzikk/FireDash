@@ -1354,7 +1354,7 @@
             type="text"
             class="form-input"
             id="settingsCurrency"
-            placeholder="$"
+            placeholder="₹"
             maxlength="5"
             style="width: 70px"
           />
@@ -1433,7 +1433,7 @@
           currency: localStorage.getItem("ff3_currency") || "",
           connected: false,
           loading: false,
-          detectedCurrency: "$",
+          detectedCurrency: "₹",
           // per-tool caches
           cache: {},
         };
@@ -1505,7 +1505,7 @@
         }
         function fc(val, sym) {
           const n = parseFloat(val) || 0;
-          const s = sym || S.detectedCurrency || "$";
+          const s = sym || S.detectedCurrency || "₹";
           return (
             (n < 0 ? "-" : "") +
             s +
@@ -1899,7 +1899,7 @@
               }
             }
           }
-          S.detectedCurrency = S.currency || cs || cc || "$";
+          S.detectedCurrency = S.currency || cs || cc || "₹";
           const monthly = parseSummary(sm, cc),
             ytd = parseSummary(sy, cc);
           // categories
