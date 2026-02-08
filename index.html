@@ -1054,8 +1054,7 @@
             }
 
             h += `<div class="summary-grid fade-in">
-                <div class="summary-card spent stagger-1"><div class="card-icon">&darr;</div><div class="card-label">Total Spent</div><div class="card-value val-neg">${fc(-d.summary.total,sym)}</div><div class="card-sub">${d.transactions.length} transactions</div></div>
-                <div class="summary-card balance stagger-2"><div class="card-icon">&#127991;</div><div class="card-label">Tag</div><div class="card-value" style="font-size:18px">${esc(d.tag)}</div><div class="card-sub">${Object.keys(d.summary.budgets).length} budget categories</div></div>
+                <div class="summary-card balance stagger-1"><div class="card-icon">&#127991;</div><div class="card-label">Tag</div><div class="card-value" style="font-size:18px">${esc(d.tag)}</div><div class="card-sub">${d.transactions.length} transactions &middot; ${Object.keys(d.summary.budgets).length} budgets</div></div>
             </div>`;
 
             h += '<div class="two-col">';
@@ -1064,10 +1063,13 @@
             const maxBudget = budgetEntries.length ? budgetEntries[0][1] : 1;
             h += `<div class="data-card fade-in stagger-2"><div class="card-head"><h3>Budget Breakdown</h3><span class="count">${budgetEntries.length}</span></div><div class="data-scroll">`;
             if (!budgetEntries.length) h += '<div class="empty-state"><p>No budget data</p></div>';
-            else budgetEntries.forEach(([name, amt], i) => {
-                const w = maxBudget > 0 ? amt / maxBudget * 100 : 0;
-                h += `<div class="list-item"><span class="list-rank">${i+1}</span><div class="list-info"><div class="list-name">${esc(name)}</div><div class="list-bar-wrap"><div class="list-bar expense" style="width:${w}%"></div></div></div><span class="list-value val-neg">${fc(-amt,sym)}</span></div>`;
-            });
+            else {
+                budgetEntries.forEach(([name, amt], i) => {
+                    const w = maxBudget > 0 ? amt / maxBudget * 100 : 0;
+                    h += `<div class="list-item"><span class="list-rank">${i+1}</span><div class="list-info"><div class="list-name">${esc(name)}</div><div class="list-bar-wrap"><div class="list-bar expense" style="width:${w}%"></div></div></div><span class="list-value val-neg">${fc(-amt,sym)}</span></div>`;
+                });
+                h += `<div class="list-item" style="border-top:2px solid var(--border);background:var(--bg-card-hover)"><div class="list-info"><div class="list-name" style="font-weight:700">Total</div></div><span class="list-value val-neg" style="font-weight:700">${fc(-d.summary.total,sym)}</span></div>`;
+            }
             h += '</div></div>';
 
             // transaction list
