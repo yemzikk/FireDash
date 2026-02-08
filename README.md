@@ -70,7 +70,7 @@ Browser  →  Cloudflare Pages Proxy  →  Your Firefly III Server
 3. Enter a Personal Access Token (create one at Firefly III → Profile → OAuth)
 4. Click Connect
 
-> Use a **read-only token** for extra safety. FireDash only reads data — it never creates, modifies, or deletes anything.
+> FireDash only reads data — it never creates, modifies, or deletes anything.
 
 ## Self-Hosting
 
