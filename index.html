@@ -793,7 +793,28 @@
             }
             return all;
         }
-        async function testConn() { try { const r = await api('/api/v1/about'); S.serverVersion = r.data?.version || ''; return true; } catch { return false; } }
+        async function testConn() {
+            try {
+                const r = await api('/api/v1/about');
+                S.serverVersion = r.data?.version || '';
+                // Detect data year range from newest/oldest transactions
+                try {
+                    const newest = await api('/api/v1/transactions', { page: '1' });
+                    const totalPages = newest.meta?.pagination?.total_pages || 1;
+                    const newestDate = newest.data?.[0]?.attributes?.transactions?.[0]?.date;
+                    if (newestDate) S.dataYearEnd = new Date(newestDate).getFullYear();
+                    if (totalPages > 1) {
+                        const oldest = await api('/api/v1/transactions', { page: String(totalPages) });
+                        const lastItem = oldest.data?.[oldest.data.length - 1];
+                        const oldestDate = lastItem?.attributes?.transactions?.[0]?.date;
+                        if (oldestDate) S.dataYearStart = new Date(oldestDate).getFullYear();
+                    } else {
+                        S.dataYearStart = S.dataYearEnd;
+                    }
+                } catch {}
+                return true;
+            } catch { return false; }
+        }
 
         // =============== CONNECT & ROUTE ===============
         async function connectAndRoute() {
@@ -932,7 +953,7 @@
         //  TOOL 1: MONTHLY REPORT
         // ============================================================
         async function fetchMonthlyReport() {
-            const m = toolState.month ?? new Date(Date.now() - 86400000 * 28).getMonth();
+            const m = toolState.month ?? new Date().getMonth();
             const y = toolState.year ?? new Date().getFullYear();
             toolState.month = m; toolState.year = y;
             const { start, end } = dateRange(m, y);
@@ -979,9 +1000,11 @@
             const sym = S.detectedCurrency;
             const mNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
             const m = toolState.month, y = toolState.year, curY = new Date().getFullYear();
+            const startYear = S.dataYearStart || curY - 5;
+            const endYear = Math.max(S.dataYearEnd || curY, curY);
             let mOpts = '', yOpts = '';
             for (let i = 0; i < 12; i++) mOpts += `<option value="${i}"${i===m?' selected':''}>${mNames[i]}</option>`;
-            for (let i = curY; i >= curY - 5; i--) yOpts += `<option value="${i}"${i===y?' selected':''}>${i}</option>`;
+            for (let i = endYear; i >= startYear; i--) yOpts += `<option value="${i}"${i===y?' selected':''}>${i}</option>`;
 
             let h = `<div class="tool-header"><h1>Monthly Report</h1>
                 <div class="tool-controls">
@@ -1496,10 +1519,10 @@
         // =============== INIT ===============
         function init() {
             initTheme();
-            // default month
-            const prev = new Date(Date.now() - 86400000 * 28);
-            toolState.month = prev.getMonth();
-            toolState.year = prev.getFullYear();
+            // default to current month
+            const now = new Date();
+            toolState.month = now.getMonth();
+            toolState.year = now.getFullYear();
 
             $('themeToggle').addEventListener('click', toggleTheme);
             $('settingsBtn').addEventListener('click', openDrawer);
