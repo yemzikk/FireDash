@@ -974,11 +974,11 @@
                     <button class="btn btn-primary" id="mrLoad">Load</button>
                 </div></div>`;
 
-            h += `<div class="summary-grid fade-in">
-                <div class="summary-card spent stagger-1"><div class="card-icon">&darr;</div><div class="card-label">Spent</div><div class="card-value val-neg">${fc(d.monthly.spent,sym)}</div><div class="card-sub">YTD: <span class="val-neg">${fc(d.ytd.spent,sym)}</span></div></div>
-                <div class="summary-card earned stagger-2"><div class="card-icon">&uarr;</div><div class="card-label">Earned</div><div class="card-value val-pos">${fc(d.monthly.earned,sym)}</div><div class="card-sub">YTD: <span class="val-pos">${fc(d.ytd.earned,sym)}</span></div></div>
-                <div class="summary-card balance stagger-3"><div class="card-icon">&Delta;</div><div class="card-label">Net Change</div><div class="card-value" style="color:${d.monthly.balance>=0?'var(--success)':'var(--danger)'}">${fc(d.monthly.balance,sym)}</div><div class="card-sub">YTD: <span style="color:${d.ytd.balance>=0?'var(--success)':'var(--danger)'}">${fc(d.ytd.balance,sym)}</span></div></div>
-                <div class="summary-card networth stagger-4"><div class="card-icon">&#9733;</div><div class="card-label">Net Worth</div><div class="card-value">${fc(d.ytd.netWorth,sym)}</div><div class="card-sub">End of period</div></div>
+            h += `<div class="summary-grid">
+                <div class="summary-card spent fade-in stagger-1"><div class="card-icon">&darr;</div><div class="card-label">Spent</div><div class="card-value val-neg">${fc(d.monthly.spent,sym)}</div><div class="card-sub">YTD: <span class="val-neg">${fc(d.ytd.spent,sym)}</span></div></div>
+                <div class="summary-card earned fade-in stagger-2"><div class="card-icon">&uarr;</div><div class="card-label">Earned</div><div class="card-value val-pos">${fc(d.monthly.earned,sym)}</div><div class="card-sub">YTD: <span class="val-pos">${fc(d.ytd.earned,sym)}</span></div></div>
+                <div class="summary-card balance fade-in stagger-3"><div class="card-icon">&Delta;</div><div class="card-label">Net Change</div><div class="card-value" style="color:${d.monthly.balance>=0?'var(--success)':'var(--danger)'}">${fc(d.monthly.balance,sym)}</div><div class="card-sub">YTD: <span style="color:${d.ytd.balance>=0?'var(--success)':'var(--danger)'}">${fc(d.ytd.balance,sym)}</span></div></div>
+                <div class="summary-card networth fade-in stagger-4"><div class="card-icon">&#9733;</div><div class="card-label">Net Worth</div><div class="card-value">${fc(d.ytd.netWorth,sym)}</div><div class="card-sub">End of period</div></div>
             </div>`;
 
             h += '<div class="two-col">';
@@ -1150,10 +1150,10 @@
             const sym = S.detectedCurrency;
             let h = `<div class="tool-header"><h1>Accounts</h1></div>`;
             const hasLiab = d.groups.liability.length > 0;
-            h += `<div class="summary-grid fade-in">
-                <div class="summary-card assets stagger-1"><div class="card-icon">&uarr;</div><div class="card-label">Total Assets</div><div class="card-value val-pos">${fc(d.totalAssets,sym)}</div><div class="card-sub">${d.groups.asset.length} accounts</div></div>
-                ${hasLiab ? `<div class="summary-card liabilities stagger-2"><div class="card-icon">&darr;</div><div class="card-label">Total Liabilities</div><div class="card-value val-neg">${fc(-d.totalLiabilities,sym)}</div><div class="card-sub">${d.groups.liability.length} accounts</div></div>
-                <div class="summary-card networth stagger-3"><div class="card-icon">&#9733;</div><div class="card-label">Net Worth</div><div class="card-value">${fc(d.netWorth,sym)}</div></div>` : ''}
+            h += `<div class="summary-grid">
+                <div class="summary-card assets fade-in stagger-1"><div class="card-icon">&uarr;</div><div class="card-label">Total Assets</div><div class="card-value val-pos">${fc(d.totalAssets,sym)}</div><div class="card-sub">${d.groups.asset.length} accounts</div></div>
+                ${hasLiab ? `<div class="summary-card liabilities fade-in stagger-2"><div class="card-icon">&darr;</div><div class="card-label">Total Liabilities</div><div class="card-value val-neg">${fc(-d.totalLiabilities,sym)}</div><div class="card-sub">${d.groups.liability.length} accounts</div></div>
+                <div class="summary-card networth fade-in stagger-3"><div class="card-icon">&#9733;</div><div class="card-label">Net Worth</div><div class="card-value">${fc(d.netWorth,sym)}</div></div>` : ''}
             </div>`;
 
             const renderGroup = (title, items, badge) => {
@@ -1191,10 +1191,10 @@
             const sym = S.detectedCurrency;
             let h = `<div class="tool-header"><h1>Savings Goals</h1></div>`;
             if (d.items.length) {
-                h += `<div class="summary-grid fade-in">
-                    <div class="summary-card savings stagger-1"><div class="card-icon">&#128179;</div><div class="card-label">Total Saved</div><div class="card-value val-pos">${fc(d.totalSaved,sym)}</div></div>
-                    ${d.totalTarget > 0 ? `<div class="summary-card networth stagger-2"><div class="card-icon">&#127919;</div><div class="card-label">Total Target</div><div class="card-value">${fc(d.totalTarget,sym)}</div></div>
-                    <div class="summary-card balance stagger-3"><div class="card-icon">&#9993;</div><div class="card-label">Overall Progress</div><div class="card-value">${Math.round(d.overallPct)}%</div></div>` : ''}
+                h += `<div class="summary-grid">
+                    <div class="summary-card savings fade-in stagger-1"><div class="card-icon">&#128179;</div><div class="card-label">Total Saved</div><div class="card-value val-pos">${fc(d.totalSaved,sym)}</div></div>
+                    ${d.totalTarget > 0 ? `<div class="summary-card networth fade-in stagger-2"><div class="card-icon">&#127919;</div><div class="card-label">Total Target</div><div class="card-value">${fc(d.totalTarget,sym)}</div></div>
+                    <div class="summary-card balance fade-in stagger-3"><div class="card-icon">&#9993;</div><div class="card-label">Overall Progress</div><div class="card-value">${Math.round(d.overallPct)}%</div></div>` : ''}
                 </div>`;
             }
 
@@ -1235,8 +1235,8 @@
             const freqLabel = f => ({ weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', 'half-year': 'Semi-annual', yearly: 'Yearly' }[f] || f);
             let h = `<div class="tool-header"><h1>Bills &amp; Subscriptions</h1></div>`;
             if (d.items.length) {
-                h += `<div class="summary-grid fade-in">
-                    <div class="summary-card bills-total stagger-1"><div class="card-icon">&#128197;</div><div class="card-label">Monthly Estimate</div><div class="card-value">${fc(d.totalMin,sym)}${d.totalMin!==d.totalMax?' - '+fc(d.totalMax,sym):''}</div><div class="card-sub">${d.items.length} active bills</div></div>
+                h += `<div class="summary-grid">
+                    <div class="summary-card bills-total fade-in stagger-1"><div class="card-icon">&#128197;</div><div class="card-label">Monthly Estimate</div><div class="card-value">${fc(d.totalMin,sym)}${d.totalMin!==d.totalMax?' - '+fc(d.totalMax,sym):''}</div><div class="card-sub">${d.items.length} active bills</div></div>
                 </div>`;
             }
 
