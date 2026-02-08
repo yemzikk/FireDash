@@ -587,7 +587,7 @@
         <div class="header-left">
             <button class="btn-icon" id="menuToggle" title="Menu" style="display:none">&#9776;</button>
             <div class="logo">F</div>
-            <div class="header-title">FireDash</div>
+            <div class="header-title" id="headerTitle">FireDash</div>
         </div>
         <div class="header-actions">
             <span class="status-dot" id="statusDot" style="margin-right:4px;visibility:hidden"></span>
@@ -648,6 +648,8 @@
                 <a class="nav-item" href="#accounts"><span class="nav-icon">&#127974;</span> Accounts</a>
                 <a class="nav-item" href="#savings"><span class="nav-icon">&#128179;</span> Savings Goals</a>
                 <a class="nav-item" href="#bills"><span class="nav-icon">&#128197;</span> Bills &amp; Subs</a>
+                <a class="nav-item" href="#search"><span class="nav-icon">&#128269;</span> Search</a>
+                <a class="nav-item" href="#trends"><span class="nav-icon">&#128202;</span> Trends</a>
             </div>
             <div class="sidebar-bottom">
                 <a class="nav-item" id="sidebarSettings"><span class="nav-icon">&#9881;</span> Settings</a>
@@ -676,9 +678,11 @@
         const TOOLS = {
             'monthly-report': { title: 'Monthly Report', fetch: fetchMonthlyReport, render: renderMonthlyReport, bind: bindMonthlyReport },
             'tag-explorer': { title: 'Tag Explorer', fetch: fetchTagExplorer, render: renderTagExplorer, bind: bindTagExplorer },
-            'accounts': { title: 'Accounts', fetch: fetchAccounts, render: renderAccounts, bind: null },
-            'savings': { title: 'Savings Goals', fetch: fetchSavings, render: renderSavings, bind: null },
-            'bills': { title: 'Bills & Subscriptions', fetch: fetchBills, render: renderBills, bind: null },
+            'accounts': { title: 'Accounts', fetch: fetchAccounts, render: renderAccounts, bind: bindAccounts },
+            'savings': { title: 'Savings Goals', fetch: fetchSavings, render: renderSavings, bind: bindSavings },
+            'bills': { title: 'Bills & Subscriptions', fetch: fetchBills, render: renderBills, bind: bindBills },
+            'search': { title: 'Transaction Search', fetch: fetchSearch, render: renderSearch, bind: bindSearch },
+            'trends': { title: 'Spending Trends', fetch: fetchTrends, render: renderTrends, bind: bindTrends },
         };
 
         let currentTool = '';
@@ -695,6 +699,13 @@
             return (n < 0 ? '-' : '') + s + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         function esc(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+        function exportCsv(rows, filename) {
+            const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+            toast('CSV exported', 'success');
+        }
 
         // =============== TOAST ===============
         function toast(msg, type = 'info') {
@@ -782,7 +793,7 @@
             }
             return all;
         }
-        async function testConn() { try { await api('/api/v1/about'); return true; } catch { return false; } }
+        async function testConn() { try { const r = await api('/api/v1/about'); S.serverVersion = r.data?.version || ''; return true; } catch { return false; } }
 
         // =============== CONNECT & ROUTE ===============
         async function connectAndRoute() {
@@ -796,8 +807,10 @@
             btns.forEach(b => { b.disabled = false; b.innerHTML = b._origHTML; });
             if (!ok) { S.connected = false; updStatus(); toast('Connection failed. Check URL and token.', 'error'); render(); return; }
             S.connected = true; updStatus();
+            if (S.serverVersion) $('headerTitle').innerHTML = `FireDash <span style="font-size:10px;font-weight:400;opacity:0.5">v${esc(S.serverVersion)}</span>`;
             toast('Connected', 'success');
-            if (!location.hash || location.hash === '#') location.hash = '#monthly-report';
+            const lastTool = localStorage.getItem('ff3_lastTool');
+            if (!location.hash || location.hash === '#') location.hash = '#' + (lastTool && TOOLS[lastTool] ? lastTool : 'monthly-report');
             else route();
         }
 
@@ -805,6 +818,7 @@
             const dot = $('statusDot');
             dot.style.visibility = 'visible';
             dot.className = 'status-dot ' + (S.loading ? 'loading' : S.connected ? 'connected' : 'error');
+            dot.title = S.loading ? 'Connecting...' : S.connected ? `Connected${S.serverVersion ? ' (v'+S.serverVersion+')' : ''}` : 'Not connected';
         }
 
         // =============== ROUTER ===============
@@ -813,6 +827,7 @@
             if (!S.connected) { render(); return; }
             if (TOOLS[hash]) {
                 currentTool = hash;
+                localStorage.setItem('ff3_lastTool', hash);
                 loadTool(hash);
             } else {
                 location.hash = '#monthly-report';
@@ -835,6 +850,7 @@
             try {
                 const data = await tool.fetch();
                 S.cache[name] = data;
+                S.lastRefresh = new Date();
                 main.innerHTML = tool.render(data);
                 if (tool.bind) tool.bind(data);
             } catch (e) {
@@ -939,7 +955,7 @@
             const categoryData = catDetails.filter(Boolean).map(c => {
                 const a = c.attributes || {};
                 const sp = parseFloat(a.spent?.[0]?.sum || '0'), ea = parseFloat(a.earned?.[0]?.sum || '0');
-                return { name: a.name || '?', spent: sp, earned: ea, total: ea + sp };
+                return { id: c.id, name: a.name || '?', spent: sp, earned: ea, total: ea + sp };
             }).sort((a, b) => { const aa = Math.abs(a.total), bb = Math.abs(b.total); return (aa === 0) - (bb === 0) || bb - aa; });
             // budgets
             const budgetData = (await Promise.all(budgets.map(async b => {
@@ -988,7 +1004,7 @@
             if (!d.categories.length) h += '<div class="empty-state"><div class="empty-icon">&#128202;</div><p>No data</p></div>';
             else d.categories.forEach((c, i) => {
                 const w = maxCat > 0 ? Math.abs(c.total) / maxCat * 100 : 0;
-                h += `<div class="list-item"><span class="list-rank">${i+1}</span><div class="list-info"><div class="list-name">${esc(c.name)}</div><div class="list-bar-wrap"><div class="list-bar ${c.total>=0?'income':'expense'}" style="width:${w}%"></div></div></div><span class="list-value ${c.total>=0?'val-pos':'val-neg'}">${fc(c.total,sym)}</span></div>`;
+                h += `<div class="list-item" style="cursor:pointer" data-cat-id="${c.id}"><span class="list-rank">${i+1}</span><div class="list-info"><div class="list-name">${esc(c.name)} <span style="font-size:10px;color:var(--text-muted)">&#9654;</span></div><div class="list-bar-wrap"><div class="list-bar ${c.total>=0?'income':'expense'}" style="width:${w}%"></div></div></div><span class="list-value ${c.total>=0?'val-pos':'val-neg'}">${fc(c.total,sym)}</span></div><div class="cat-drill" id="catDrill-${c.id}" style="display:none"></div>`;
             });
             h += '</div></div>';
             // budgets
@@ -1004,7 +1020,7 @@
             h += '</div></div></div>';
             return h;
         }
-        function bindMonthlyReport() {
+        function bindMonthlyReport(d) {
             const triggerLoad = () => {
                 toolState.month = parseInt($('mrMonth').value);
                 toolState.year = parseInt($('mrYear').value);
@@ -1014,6 +1030,34 @@
             ['mrMonth','mrYear'].forEach(id => {
                 $(id)?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); triggerLoad(); } });
                 $(id)?.addEventListener('change', triggerLoad);
+            });
+            // Category drill-down
+            document.querySelectorAll('[data-cat-id]').forEach(el => {
+                el.addEventListener('click', async () => {
+                    const catId = el.dataset.catId;
+                    const drill = document.getElementById('catDrill-' + catId);
+                    if (!drill) return;
+                    if (drill.style.display !== 'none') { drill.style.display = 'none'; return; }
+                    const sym = S.detectedCurrency;
+                    const { start, end } = dateRange(toolState.month, toolState.year);
+                    drill.innerHTML = '<div style="padding:8px 20px 8px 58px;color:var(--text-muted);font-size:12px"><span class="spin" style="display:inline-block;font-size:14px">&#8635;</span> Loading...</div>';
+                    drill.style.display = 'block';
+                    try {
+                        const txs = await apiAll(`/api/v1/categories/${catId}/transactions`, { start, end });
+                        let html = '';
+                        const flat = [];
+                        for (const j of txs) { for (const tx of (j.attributes?.transactions || [])) flat.push(tx); }
+                        flat.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                        if (!flat.length) { drill.innerHTML = '<div style="padding:8px 20px 8px 58px;color:var(--text-muted);font-size:12px">No transactions</div>'; return; }
+                        flat.slice(0, 30).forEach(tx => {
+                            const amt = parseFloat(tx.amount) || 0;
+                            const isIncome = tx.type === 'deposit';
+                            html += `<div class="list-item" style="padding-left:58px;background:var(--bg-card-hover);border-left:2px solid var(--accent)"><div class="list-info"><div class="list-name" style="font-size:12px">${esc(tx.description || 'No description')}</div><div class="list-meta">${esc(tx.date?.split('T')[0] || '')} &middot; ${esc(tx.source_name || '')}${tx.destination_name ? ' &rarr; '+esc(tx.destination_name) : ''}</div></div><span class="list-value ${isIncome?'val-pos':'val-neg'}" style="font-size:12px">${isIncome?'':'-'}${fc(Math.abs(amt),sym)}</span></div>`;
+                        });
+                        if (flat.length > 30) html += `<div style="padding:6px 20px 6px 58px;color:var(--text-muted);font-size:11px;text-align:center">${flat.length - 30} more...</div>`;
+                        drill.innerHTML = html;
+                    } catch (e) { drill.innerHTML = `<div style="padding:8px 20px 8px 58px;color:var(--danger);font-size:12px">Error: ${esc(e.message)}</div>`; }
+                });
             });
         }
 
@@ -1027,7 +1071,10 @@
             const tagObj = toolState.tags.find(t => (t.attributes?.tag || '') === toolState.selectedTag);
             if (!tagObj) { toast('Tag not found', 'error'); return { tags: toolState.tags, transactions: null, summary: null }; }
             // Use tag-specific endpoint (much faster than fetching all transactions)
-            const allTx = await apiAll(`/api/v1/tags/${tagObj.id}/transactions`, {}, (page, total, count) => {
+            const dateParams = {};
+            if (toolState.tagStart) dateParams.start = toolState.tagStart;
+            if (toolState.tagEnd) dateParams.end = toolState.tagEnd;
+            const allTx = await apiAll(`/api/v1/tags/${tagObj.id}/transactions`, dateParams, (page, total, count) => {
                 const el = document.getElementById('loadProgress');
                 if (el) el.innerHTML = `<span class="spin" style="display:inline-block;font-size:16px">&#8635;</span> Fetching transactions... page ${page}/${total} (${count} found)`;
             });
@@ -1039,15 +1086,24 @@
                     }
                 }
             }
-            let total = 0;
+            let total = 0, minDate = '', maxDate = '';
             const budgets = {};
             filtered.forEach(tx => {
                 const amt = parseFloat(tx.amount) || 0;
                 total += amt;
                 const bn = tx.budget_name || 'Uncategorized';
                 budgets[bn] = (budgets[bn] || 0) + amt;
+                const d = tx.date?.split('T')[0] || '';
+                if (d && (!minDate || d < minDate)) minDate = d;
+                if (d && (!maxDate || d > maxDate)) maxDate = d;
             });
-            return { tags: toolState.tags, transactions: filtered, summary: { total, budgets }, tag: toolState.selectedTag };
+            // Auto-set date range from actual data on first load (when user hasn't set dates)
+            if (filtered.length && !toolState.tagDatesSet) {
+                toolState.tagStart = minDate;
+                toolState.tagEnd = maxDate;
+                toolState.tagDatesSet = true;
+            }
+            return { tags: toolState.tags, transactions: filtered, summary: { total, budgets, minDate, maxDate }, tag: toolState.selectedTag };
         }
 
         function renderTagExplorer(d) {
@@ -1057,9 +1113,13 @@
                 const name = t.attributes?.tag || t.tag || '';
                 tagOpts += `<option value="${esc(name)}"${name===toolState.selectedTag?' selected':''}>${esc(name)}</option>`;
             });
+            const defStart = toolState.tagStart || '';
+            const defEnd = toolState.tagEnd || '';
             let h = `<div class="tool-header"><h1>Tag Explorer</h1>
                 <div class="tool-controls">
-                    <select class="form-select" id="tagSelect" style="min-width:200px">${tagOpts}</select>
+                    <select class="form-select" id="tagSelect" style="min-width:180px">${tagOpts}</select>
+                    <input type="date" class="form-input" id="tagStart" value="${defStart}" style="width:auto" title="Start date (auto-detected from data)">
+                    <input type="date" class="form-input" id="tagEnd" value="${defEnd}" style="width:auto" title="End date (auto-detected from data)">
                     <button class="btn btn-primary" id="tagLoad">Analyze</button>
                 </div></div>`;
 
@@ -1096,11 +1156,21 @@
         function bindTagExplorer(d) {
             const triggerLoad = () => {
                 toolState.selectedTag = $('tagSelect').value;
+                toolState.tagStart = $('tagStart')?.value || '';
+                toolState.tagEnd = $('tagEnd')?.value || '';
                 if (!toolState.selectedTag) { toast('Select a tag first', 'error'); return; }
                 loadTool('tag-explorer');
             };
             $('tagLoad')?.addEventListener('click', triggerLoad);
             $('tagSelect')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); triggerLoad(); } });
+            // Reset auto-date when tag changes so it auto-detects for new tag
+            $('tagSelect')?.addEventListener('change', () => {
+                toolState.tagDatesSet = false;
+                toolState.tagStart = '';
+                toolState.tagEnd = '';
+                if ($('tagStart')) $('tagStart').value = '';
+                if ($('tagEnd')) $('tagEnd').value = '';
+            });
             $('csvExport')?.addEventListener('click', () => {
                 if (!d.transactions?.length) return;
                 const rows = [['Date','Description','Amount','Currency','Account','Budget','Tags']];
@@ -1109,13 +1179,7 @@
                     tx.currency_symbol || S.detectedCurrency, tx.source_name || '',
                     tx.budget_name || '', (tx.tags || []).join('; ')
                 ]));
-                const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `${(toolState.selectedTag || 'tag').replace(/\s+/g, '_')}_transactions.csv`;
-                a.click(); URL.revokeObjectURL(a.href);
-                toast('CSV exported', 'success');
+                exportCsv(rows, `${(toolState.selectedTag || 'tag').replace(/\s+/g, '_')}_transactions.csv`);
             });
         }
 
@@ -1148,7 +1212,7 @@
 
         function renderAccounts(d) {
             const sym = S.detectedCurrency;
-            let h = `<div class="tool-header"><h1>Accounts</h1></div>`;
+            let h = `<div class="tool-header"><h1>Accounts</h1><div class="tool-controls"><button class="btn btn-ghost" id="accExport">&#8615; CSV</button></div></div>`;
             const hasLiab = d.groups.liability.length > 0;
             h += `<div class="summary-grid">
                 <div class="summary-card assets fade-in stagger-1"><div class="card-icon">&uarr;</div><div class="card-label">Total Assets</div><div class="card-value val-pos">${fc(d.totalAssets,sym)}</div><div class="card-sub">${d.groups.asset.length} accounts</div></div>
@@ -1170,6 +1234,14 @@
             return h;
         }
 
+        function bindAccounts(d) {
+            $('accExport')?.addEventListener('click', () => {
+                const rows = [['Name','Type','Balance','Currency']];
+                ['asset','liability','revenue'].forEach(t => d.groups[t].forEach(a => rows.push([a.name, a.type, a.balance, a.currency])));
+                exportCsv(rows, 'accounts.csv');
+            });
+        }
+
         // ============================================================
         //  TOOL 4: SAVINGS GOALS
         // ============================================================
@@ -1189,7 +1261,7 @@
 
         function renderSavings(d) {
             const sym = S.detectedCurrency;
-            let h = `<div class="tool-header"><h1>Savings Goals</h1></div>`;
+            let h = `<div class="tool-header"><h1>Savings Goals</h1><div class="tool-controls"><button class="btn btn-ghost" id="savExport">&#8615; CSV</button></div></div>`;
             if (d.items.length) {
                 h += `<div class="summary-grid">
                     <div class="summary-card savings fade-in stagger-1"><div class="card-icon">&#128179;</div><div class="card-label">Total Saved</div><div class="card-value val-pos">${fc(d.totalSaved,sym)}</div></div>
@@ -1208,6 +1280,14 @@
             });
             h += '</div></div>';
             return h;
+        }
+
+        function bindSavings(d) {
+            $('savExport')?.addEventListener('click', () => {
+                const rows = [['Name','Current Amount','Target Amount','Progress %','Currency']];
+                d.items.forEach(p => rows.push([p.name, p.current, p.target, Math.round(p.pct), p.currency]));
+                exportCsv(rows, 'savings_goals.csv');
+            });
         }
 
         // ============================================================
@@ -1233,7 +1313,7 @@
         function renderBills(d) {
             const sym = S.detectedCurrency;
             const freqLabel = f => ({ weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', 'half-year': 'Semi-annual', yearly: 'Yearly' }[f] || f);
-            let h = `<div class="tool-header"><h1>Bills &amp; Subscriptions</h1></div>`;
+            let h = `<div class="tool-header"><h1>Bills &amp; Subscriptions</h1><div class="tool-controls"><button class="btn btn-ghost" id="billExport">&#8615; CSV</button></div></div>`;
             if (d.items.length) {
                 h += `<div class="summary-grid">
                     <div class="summary-card bills-total fade-in stagger-1"><div class="card-icon">&#128197;</div><div class="card-label">Monthly Estimate</div><div class="card-value">${fc(d.totalMin,sym)}${d.totalMin!==d.totalMax?' - '+fc(d.totalMax,sym):''}</div><div class="card-sub">${d.items.length} active bills</div></div>
@@ -1250,6 +1330,167 @@
             });
             h += '</div></div>';
             return h;
+        }
+
+        function bindBills(d) {
+            $('billExport')?.addEventListener('click', () => {
+                const rows = [['Name','Min Amount','Max Amount','Frequency','Next Due','Currency']];
+                d.items.forEach(b => rows.push([b.name, b.min, b.max, b.freq, b.nextDate ? fmt(b.nextDate) : '', b.currency]));
+                exportCsv(rows, 'bills.csv');
+            });
+        }
+
+        // ============================================================
+        //  TOOL 6: TRANSACTION SEARCH
+        // ============================================================
+        async function fetchSearch() {
+            if (!toolState.searchQuery) return { results: null };
+            const params = { query: toolState.searchQuery };
+            if (toolState.searchType && toolState.searchType !== 'all') params.type = toolState.searchType;
+            const allTx = await apiAll('/api/v1/search/transactions', params, (page, total, count) => {
+                const el = document.getElementById('loadProgress');
+                if (el) el.innerHTML = `<span class="spin" style="display:inline-block;font-size:16px">&#8635;</span> Searching... page ${page}/${total} (${count} found)`;
+            });
+            const transactions = [];
+            for (const journal of allTx) {
+                for (const tx of (journal.attributes?.transactions || [])) {
+                    const d = tx.date?.split('T')[0] || '';
+                    if (toolState.searchStart && d < toolState.searchStart) continue;
+                    if (toolState.searchEnd && d > toolState.searchEnd) continue;
+                    transactions.push(tx);
+                }
+            }
+            transactions.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            return { results: transactions, query: toolState.searchQuery };
+        }
+
+        function renderSearch(d) {
+            const sym = S.detectedCurrency;
+            const q = toolState.searchQuery || '';
+            const st = toolState.searchType || 'all';
+            const typeOpts = ['all','withdrawal','deposit','transfer'].map(t => `<option value="${t}"${t===st?' selected':''}>${t==='all'?'All Types':t.charAt(0).toUpperCase()+t.slice(1)+'s'}</option>`).join('');
+            let h = `<div class="tool-header"><h1>Transaction Search</h1></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;align-items:flex-end">
+                    <div class="form-group" style="flex:2;min-width:180px;margin-bottom:0"><label>Search</label><input type="text" class="form-input" id="searchInput" value="${esc(q)}" placeholder="Description, amount, notes..."></div>
+                    <div class="form-group" style="margin-bottom:0"><label>Type</label><select class="form-select" id="searchType">${typeOpts}</select></div>
+                    <div class="form-group" style="margin-bottom:0"><label>From</label><input type="date" class="form-input" id="searchStart" value="${toolState.searchStart||''}" style="width:auto"></div>
+                    <div class="form-group" style="margin-bottom:0"><label>To</label><input type="date" class="form-input" id="searchEnd" value="${toolState.searchEnd||''}" style="width:auto"></div>
+                    <button class="btn btn-primary" id="searchBtn" style="height:36px">Search</button>
+                </div>`;
+
+            if (!d.results) {
+                h += '<div class="empty-state fade-in"><div class="empty-icon">&#128269;</div><p>Enter a search term and click Search</p></div>';
+                return h;
+            }
+
+            h += `<div class="data-card fade-in"><div class="card-head"><h3>Results</h3><div style="display:flex;gap:8px;align-items:center"><span class="count">${d.results.length}</span><button class="btn btn-ghost" id="searchExport">&#8615; CSV</button></div></div><div class="data-scroll" style="max-height:600px">`;
+            if (!d.results.length) h += '<div class="empty-state"><p>No transactions found</p></div>';
+            else d.results.forEach(tx => {
+                const amt = parseFloat(tx.amount) || 0;
+                const isIncome = tx.type === 'deposit';
+                const color = isIncome ? 'val-pos' : tx.type === 'transfer' ? 'val-muted' : 'val-neg';
+                const sign = isIncome ? '' : '-';
+                h += `<div class="list-item"><div class="list-info"><div class="list-name">${esc(tx.description || 'No description')}</div><div class="list-meta">${esc(tx.date?.split('T')[0] || '')} &middot; ${esc(tx.source_name || '')} &rarr; ${esc(tx.destination_name || '')}${tx.category_name ? ' &middot; '+esc(tx.category_name) : ''}</div></div><span class="list-value ${color}">${sign}${fc(Math.abs(amt),sym)}</span></div>`;
+            });
+            h += '</div></div>';
+            return h;
+        }
+
+        function bindSearch(d) {
+            const triggerSearch = () => {
+                toolState.searchQuery = $('searchInput')?.value?.trim() || '';
+                toolState.searchType = $('searchType')?.value || 'all';
+                toolState.searchStart = $('searchStart')?.value || '';
+                toolState.searchEnd = $('searchEnd')?.value || '';
+                if (!toolState.searchQuery) { toast('Enter a search term', 'error'); return; }
+                loadTool('search');
+            };
+            $('searchBtn')?.addEventListener('click', triggerSearch);
+            $('searchInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); triggerSearch(); } });
+            $('searchExport')?.addEventListener('click', () => {
+                if (!d.results?.length) return;
+                const rows = [['Date','Description','Amount','Type','Source','Destination','Category','Currency']];
+                d.results.forEach(tx => rows.push([
+                    tx.date?.split('T')[0] || '', tx.description || '', tx.amount || '', tx.type || '',
+                    tx.source_name || '', tx.destination_name || '', tx.category_name || '',
+                    tx.currency_symbol || S.detectedCurrency
+                ]));
+                exportCsv(rows, `search_${(toolState.searchQuery||'results').replace(/\s+/g,'_')}.csv`);
+            });
+            // Auto-focus search input
+            $('searchInput')?.focus();
+        }
+
+        // ============================================================
+        //  TOOL 7: SPENDING TRENDS
+        // ============================================================
+        async function fetchTrends() {
+            const months = parseInt(toolState.trendMonths) || 6;
+            const mode = toolState.trendMode || 'spent';
+            const now = new Date();
+            const data = [];
+            for (let i = months - 1; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const { start, end } = dateRange(d.getMonth(), d.getFullYear());
+                const sm = await api('/api/v1/summary/basic', { start, end });
+                let cc = '';
+                const ccPattern = /^(?:spent|earned|balance|net-worth)-in-(.+)$/;
+                for (const k of Object.keys(sm)) { const m2 = k.match(ccPattern); if (m2) { cc = m2[1]; break; } }
+                const g = p => Math.abs(parseFloat(sm[`${p}-in-${cc}`]?.monetary_value || '0'));
+                const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                data.push({ label: `${mNames[d.getMonth()]} ${d.getFullYear()}`, spent: g('spent'), earned: g('earned'), balance: parseFloat(sm[`balance-in-${cc}`]?.monetary_value || '0') });
+            }
+            return { data, mode, months };
+        }
+
+        function renderTrends(d) {
+            const sym = S.detectedCurrency;
+            const mode = d.mode || 'spent';
+            const values = d.data.map(m => mode === 'spent' ? m.spent : mode === 'earned' ? m.earned : m.balance);
+            const maxVal = Math.max(...values.map(Math.abs), 1);
+            const total = values.reduce((s, v) => s + v, 0);
+            const avg = total / values.length;
+            const highest = d.data[values.indexOf(Math.max(...values))];
+            const lowest = d.data[values.indexOf(Math.min(...values.filter(v => v > 0)))];
+
+            const modeOpts = [['spent','Spending'],['earned','Income'],['balance','Net']].map(([v,l]) => `<option value="${v}"${v===mode?' selected':''}>${l}</option>`).join('');
+            const monthOpts = [6,12].map(n => `<option value="${n}"${n===d.months?' selected':''}>${n} months</option>`).join('');
+
+            let h = `<div class="tool-header"><h1>Spending Trends</h1>
+                <div class="tool-controls">
+                    <select class="form-select" id="trendMode" style="width:auto">${modeOpts}</select>
+                    <select class="form-select" id="trendMonths" style="width:auto">${monthOpts}</select>
+                    <button class="btn btn-primary" id="trendLoad">Update</button>
+                </div></div>`;
+
+            h += `<div class="summary-grid">
+                <div class="summary-card ${mode==='earned'?'earned':'spent'} fade-in stagger-1"><div class="card-icon">${mode==='earned'?'&uarr;':'&darr;'}</div><div class="card-label">Average / Month</div><div class="card-value">${fc(avg,sym)}</div></div>
+                ${highest ? `<div class="summary-card networth fade-in stagger-2"><div class="card-icon">&#9650;</div><div class="card-label">Highest</div><div class="card-value">${fc(Math.max(...values),sym)}</div><div class="card-sub">${esc(highest.label)}</div></div>` : ''}
+                ${lowest ? `<div class="summary-card balance fade-in stagger-3"><div class="card-icon">&#9660;</div><div class="card-label">Lowest</div><div class="card-value">${fc(Math.min(...values.filter(v=>v>0)),sym)}</div><div class="card-sub">${esc(lowest.label)}</div></div>` : ''}
+            </div>`;
+
+            const barColor = mode === 'earned' ? 'ok' : mode === 'balance' ? 'purple' : 'over';
+            h += `<div class="data-card fade-in stagger-2"><div class="card-head"><h3>Monthly ${mode==='spent'?'Spending':mode==='earned'?'Income':'Net Change'}</h3></div>`;
+            d.data.forEach(m => {
+                const val = mode === 'spent' ? m.spent : mode === 'earned' ? m.earned : m.balance;
+                const pct = maxVal > 0 ? Math.abs(val) / maxVal * 100 : 0;
+                h += `<div class="progress-item"><div class="progress-row"><span class="progress-name">${esc(m.label)}</span><span class="progress-amounts"><span class="pval ${val < 0 ? 'val-neg' : mode==='spent'?'val-neg':'val-pos'}">${mode==='balance'?fc(val,sym):fc(val,sym)}</span></span></div>
+                    <div class="progress-bar-wrap"><div class="progress-bar ${barColor}" style="width:${pct}%"></div></div></div>`;
+            });
+            h += '</div>';
+            return h;
+        }
+
+        function bindTrends() {
+            const triggerLoad = () => {
+                toolState.trendMode = $('trendMode')?.value || 'spent';
+                toolState.trendMonths = parseInt($('trendMonths')?.value) || 6;
+                loadTool('trends');
+            };
+            $('trendLoad')?.addEventListener('click', triggerLoad);
+            ['trendMode','trendMonths'].forEach(id => {
+                $(id)?.addEventListener('change', triggerLoad);
+            });
         }
 
         // =============== INIT ===============
@@ -1277,7 +1518,20 @@
                 });
             });
 
-            document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawer(); $('sidebar').classList.remove('mobile-open'); } });
+            const toolKeys = ['monthly-report','tag-explorer','accounts','savings','bills','search','trends'];
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape') { closeDrawer(); $('sidebar').classList.remove('mobile-open'); return; }
+                // Skip shortcuts when typing in inputs
+                const tag = e.target.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+                // Number keys 1-7 navigate to tools
+                const num = parseInt(e.key);
+                if (num >= 1 && num <= toolKeys.length && S.connected) { e.preventDefault(); location.hash = '#' + toolKeys[num - 1]; return; }
+                if (e.key === 'r' && S.connected) { e.preventDefault(); S.cache = {}; route(); return; }
+                if (e.key === 's') { e.preventDefault(); openDrawer(); return; }
+                if (e.key === '/' && S.connected) { e.preventDefault(); location.hash = '#search'; setTimeout(() => $('searchInput')?.focus(), 100); return; }
+            });
             window.addEventListener('hashchange', route);
 
             if (S.url && S.token) connectAndRoute();
