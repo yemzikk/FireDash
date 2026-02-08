@@ -140,13 +140,13 @@
         .main-content {
             flex: 1;
             margin-left: var(--sidebar-w);
-            padding: 24px;
-            max-width: 1200px;
+            padding: 24px 32px;
+            width: calc(100% - var(--sidebar-w));
             transition: margin-left 0.25s ease;
         }
 
         /* ===== FULL-SCREEN MODE (setup) ===== */
-        .main-content.full-screen { margin-left: 0; max-width: 100%; }
+        .main-content.full-screen { margin-left: 0; width: 100%; }
         .sidebar.hidden { transform: translateX(-100%); }
 
         /* ===== BUTTONS ===== */
@@ -500,15 +500,85 @@
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+        /* ===== SIDEBAR BACKDROP (mobile) ===== */
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            top: var(--header-h);
+            background: rgba(0,0,0,0.5);
+            z-index: 89;
+            -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
+        }
+
         /* ===== RESPONSIVE ===== */
+        @media (max-width: 1024px) and (min-width: 769px) {
+            :root { --sidebar-w: 180px; }
+            .main-content { padding: 20px 24px; }
+            .summary-grid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+        }
+
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); width: var(--sidebar-w); }
+            .sidebar {
+                transform: translateX(-100%);
+                width: 260px;
+                z-index: 91;
+            }
             .sidebar.mobile-open { transform: translateX(0); }
-            .main-content { margin-left: 0 !important; }
-            .setup-card { padding: 28px 20px; margin: 30px 12px; }
-            .summary-grid { grid-template-columns: 1fr 1fr; }
-            .card-value { font-size: 18px; }
+            .sidebar.mobile-open ~ .sidebar-backdrop { display: block; }
+
+            .main-content {
+                margin-left: 0 !important;
+                width: 100% !important;
+                padding: 16px !important;
+            }
+
+            .header { padding: 0 12px; }
+            .header-title { font-size: 13px; }
+            .header-actions { gap: 4px; }
+
+            .setup-card { padding: 24px 18px; margin: 20px 10px; }
+            .setup-card h2 { font-size: 18px; }
+            .setup-card p { font-size: 12px; margin-bottom: 20px; }
+
+            .summary-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .summary-card { padding: 14px; }
+            .card-value { font-size: 17px; }
+            .card-icon { width: 28px; height: 28px; font-size: 13px; margin-bottom: 8px; }
+            .card-label { font-size: 10px; }
+            .card-sub { font-size: 10px; }
+
             .two-col { grid-template-columns: 1fr; }
+
+            .tool-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .tool-header h1 { font-size: 18px; }
+            .tool-controls { width: 100%; }
+            .tool-controls .form-select { flex: 1; min-width: 0 !important; }
+
+            .drawer { width: 100vw; }
+
+            .toast-container { left: 12px; right: 12px; }
+            .toast { max-width: 100%; }
+
+            .list-item { padding: 10px 14px; gap: 10px; }
+            .list-value { min-width: 65px; font-size: 12px; }
+            .list-name { font-size: 12px; }
+            .data-card .card-head { padding: 12px 14px; }
+            .data-card .card-head h3 { font-size: 14px; }
+            .progress-item { padding: 12px 14px; }
+
+            .form-row { flex-direction: column; }
+            .notice p { font-size: 10.5px; }
+        }
+
+        @media (max-width: 480px) {
+            .summary-grid { grid-template-columns: 1fr; }
+            .main-content { padding: 10px !important; }
+            .btn-icon { width: 30px; height: 30px; font-size: 13px; }
+            .card-value { font-size: 18px; }
+            .summary-card { padding: 14px; }
+            .setup-card { margin: 16px 8px; padding: 20px 14px; }
         }
     </style>
 </head>
@@ -583,6 +653,7 @@
                 <a class="nav-item" id="sidebarSettings"><span class="nav-icon">&#9881;</span> Settings</a>
             </div>
         </nav>
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
         <main class="main-content full-screen" id="mainContent"></main>
     </div>
 
@@ -697,12 +768,14 @@
             if (!r.ok) throw new Error(`API ${r.status}: ${r.statusText}`);
             return r.json();
         }
-        async function apiAll(endpoint, params = {}) {
+        async function apiAll(endpoint, params = {}, onProgress) {
             let page = 1, all = [];
             while (true) {
                 const r = await api(endpoint, { ...params, page: String(page) });
                 all = all.concat(r.data || []);
-                if (page >= (r.meta?.pagination?.total_pages || 1)) break;
+                const totalPages = r.meta?.pagination?.total_pages || 1;
+                if (onProgress) onProgress(page, totalPages, all.length);
+                if (page >= totalPages) break;
                 page++;
             }
             return all;
@@ -767,6 +840,7 @@
 
         function renderToolLoading(title) {
             return `<div class="tool-header"><h1>${esc(title)}</h1></div>
+                <div id="loadProgress" style="text-align:center;padding:16px 0;color:var(--text-muted);font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px"><span class="spin" style="display:inline-block;font-size:16px">&#8635;</span> Loading...</div>
                 <div class="summary-grid">${'<div class="skeleton skel-card"></div>'.repeat(4)}</div>
                 <div class="two-col"><div>${'<div class="skeleton skel-row"></div>'.repeat(5)}</div><div>${'<div class="skeleton skel-row"></div>'.repeat(5)}</div></div>`;
         }
@@ -934,12 +1008,18 @@
         async function fetchTagExplorer() {
             if (!toolState.tags) toolState.tags = await apiAll('/api/v1/tags');
             if (!toolState.selectedTag) return { tags: toolState.tags, transactions: null, summary: null };
-            // fetch all expense transactions, filter by tag client-side
-            const allTx = await apiAll('/api/v1/transactions', { type: 'expense' });
+            // Find tag object by name to get its ID
+            const tagObj = toolState.tags.find(t => (t.attributes?.tag || '') === toolState.selectedTag);
+            if (!tagObj) { toast('Tag not found', 'error'); return { tags: toolState.tags, transactions: null, summary: null }; }
+            // Use tag-specific endpoint (much faster than fetching all transactions)
+            const allTx = await apiAll(`/api/v1/tags/${tagObj.id}/transactions`, {}, (page, total, count) => {
+                const el = document.getElementById('loadProgress');
+                if (el) el.innerHTML = `<span class="spin" style="display:inline-block;font-size:16px">&#8635;</span> Fetching transactions... page ${page}/${total} (${count} found)`;
+            });
             const filtered = [];
             for (const journal of allTx) {
                 for (const tx of (journal.attributes?.transactions || [])) {
-                    if (tx.type === 'withdrawal' && (tx.tags || []).includes(toolState.selectedTag)) {
+                    if (tx.type === 'withdrawal') {
                         filtered.push(tx);
                     }
                 }
@@ -1031,11 +1111,12 @@
             const accounts = await apiAll('/api/v1/accounts');
             const groups = { asset: [], liability: [], expense: [], revenue: [] };
             let totalAssets = 0, totalLiabilities = 0;
+            const skipTypes = ['initial-balance','initialBalance','initial_balance','reconciliation'];
             accounts.forEach(acc => {
                 const a = acc.attributes || {};
+                if (!a.active || skipTypes.includes(a.type)) return;
                 const bal = parseFloat(a.current_balance || '0');
                 const entry = { name: a.name, type: a.type, balance: bal, currency: a.currency_symbol || S.detectedCurrency, active: a.active };
-                if (!a.active) return;
                 if (['asset','default','Default asset account'].includes(a.type) || a.type?.includes('asset')) {
                     groups.asset.push(entry); totalAssets += bal;
                 } else if (['loan','debt','mortgage','Loan','Debt','Mortgage'].includes(a.type) || a.type?.includes('liabilit')) {
@@ -1044,8 +1125,6 @@
                     groups.expense.push(entry);
                 } else if (a.type === 'revenue' || a.type?.includes('revenue')) {
                     groups.revenue.push(entry);
-                } else {
-                    groups.asset.push(entry); totalAssets += bal;
                 }
             });
             Object.values(groups).forEach(g => g.sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance)));
@@ -1172,8 +1251,14 @@
             $('toggleKeyVis').addEventListener('click', () => { const i = $('settingsKey'); i.type = i.type === 'password' ? 'text' : 'password'; });
             $('sidebarSettings').addEventListener('click', (e) => { e.preventDefault(); openDrawer(); });
             $('menuToggle').addEventListener('click', () => $('sidebar').classList.toggle('mobile-open'));
+            $('sidebarBackdrop').addEventListener('click', () => $('sidebar').classList.remove('mobile-open'));
+            document.querySelectorAll('.sidebar .nav-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) $('sidebar').classList.remove('mobile-open');
+                });
+            });
 
-            document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawer(); $('sidebar').classList.remove('mobile-open'); } });
             window.addEventListener('hashchange', route);
 
             if (S.url && S.token) connectAndRoute();
