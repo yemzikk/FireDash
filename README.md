@@ -134,7 +134,7 @@ npx wrangler pages dev .
 - Credentials stored in browser localStorage only
 - Proxy enforces HTTPS and restricts to `/api/` paths
 - Authorization header required (no anonymous proxying)
-- No analytics, tracking, or telemetry
+- Optional anonymous usage analytics — opt-in only, off by default (toggle in Settings). No financial data is ever collected. See [ANALYTICS_EVENTS.md](ANALYTICS_EVENTS.md) for what's tracked
 - Fully open source
 
 ## License

@@ -46,18 +46,17 @@
       rel="stylesheet"
     />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <script
-      async
-      src="https://www.googletagmanager.com/gtag/js?id=G-WYJG0P52V5"
-    ></script>
     <script>
       window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
+      function gtag() { dataLayer.push(arguments); }
+      if (localStorage.getItem("ff3_analytics") === "1") {
+        const s = document.createElement("script");
+        s.async = true;
+        s.src = "https://www.googletagmanager.com/gtag/js?id=G-WYJG0P52V5";
+        document.head.appendChild(s);
+        gtag("js", new Date());
+        gtag("config", "G-WYJG0P52V5");
       }
-      gtag("js", new Date());
-
-      gtag("config", "G-WYJG0P52V5");
     </script>
     <style>
       *,
@@ -1299,6 +1298,46 @@
       }
       .offline-banner.show {
         display: flex;
+      }
+
+      .consent-banner {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 800;
+        background: var(--bg-card);
+        border-top: 1px solid var(--border);
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+        transform: translateY(100%);
+        transition: transform 0.3s ease;
+      }
+      .consent-banner.show {
+        transform: translateY(0);
+      }
+      .consent-banner p {
+        flex: 1;
+        color: var(--text-secondary);
+        line-height: 1.5;
+      }
+      .consent-banner-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      @media (max-width: 600px) {
+        .consent-banner {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .consent-banner-actions {
+          width: 100%;
+        }
       }
 
       /* ===== KEYBOARD SHORTCUTS MODAL ===== */
@@ -2623,6 +2662,13 @@
     <div class="offline-banner" id="offlineBanner">
       📡 You're offline - data may be stale
     </div>
+    <div class="consent-banner" id="consentBanner">
+      <p>Help improve FireDash by sharing anonymous usage data. No financial data is ever collected.</p>
+      <div class="consent-banner-actions">
+        <button class="btn btn-secondary" id="consentDecline">No thanks</button>
+        <button class="btn btn-primary" id="consentAccept">Yes, opt in</button>
+      </div>
+    </div>
     <div class="ptr-indicator" id="ptrIndicator">
       <svg
         class="spin"
@@ -2983,6 +3029,34 @@
                 Remove PIN
               </button>
             </div>
+          </div>
+        </div>
+        <!-- Analytics Settings -->
+        <div class="setting-section">
+          <div class="setting-section-title">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              width="14"
+              height="14"
+            >
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+            Analytics
+          </div>
+          <div class="setting-row">
+            <div>
+              <label>Share anonymous usage data</label>
+              <div class="hint">Help improve FireDash - no financial data is ever collected</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="analyticsToggle" />
+              <span class="toggle-slider"></span>
+            </label>
           </div>
         </div>
       </div>
@@ -3356,8 +3430,20 @@
         let _sessionStart = Date.now();
 
         // =============== ANALYTICS ===============
+        function loadGtag() {
+          if (window._gtagLoaded) return;
+          window._gtagLoaded = true;
+          const s = document.createElement("script");
+          s.async = true;
+          s.src = "https://www.googletagmanager.com/gtag/js?id=G-WYJG0P52V5";
+          document.head.appendChild(s);
+          gtag("js", new Date());
+          gtag("config", "G-WYJG0P52V5");
+        }
+
         function track(event, params = {}) {
           try {
+            if (localStorage.getItem("ff3_analytics") !== "1") return;
             gtag("event", event, {
               ...params,
               session_duration_sec: Math.round(
@@ -3367,6 +3453,35 @@
           } catch (e) {
             /* analytics should never break app */
           }
+        }
+
+        function initAnalyticsConsent() {
+          const consent = localStorage.getItem("ff3_analytics");
+          const toggle = $("analyticsToggle");
+          if (toggle) toggle.checked = consent === "1";
+
+          toggle?.addEventListener("change", (e) => {
+            const val = e.target.checked ? "1" : "0";
+            localStorage.setItem("ff3_analytics", val);
+            if (val === "1") loadGtag();
+          });
+
+          if (consent === null) {
+            setTimeout(() => $("consentBanner")?.classList.add("show"), 1500);
+          }
+
+          $("consentAccept")?.addEventListener("click", () => {
+            localStorage.setItem("ff3_analytics", "1");
+            if (toggle) toggle.checked = true;
+            $("consentBanner")?.classList.remove("show");
+            loadGtag();
+          });
+
+          $("consentDecline")?.addEventListener("click", () => {
+            localStorage.setItem("ff3_analytics", "0");
+            if (toggle) toggle.checked = false;
+            $("consentBanner")?.classList.remove("show");
+          });
         }
 
         // =============== HELPERS ===============
@@ -4032,6 +4147,7 @@
           $("settingsUrl").value = S.url;
           $("settingsKey").value = S.token;
           $("settingsCurrency").value = S.currency;
+          $("analyticsToggle").checked = localStorage.getItem("ff3_analytics") === "1";
           $("drawerOverlay").classList.add("open");
           $("settingsDrawer").classList.add("open");
           track("settings_open");
@@ -7963,6 +8079,8 @@
           initPullToRefresh();
           // Init PIN lock
           initPinLock();
+          // Init analytics consent
+          initAnalyticsConsent();
           // Wire up keyboard shortcuts modal
           $("kbdClose")?.addEventListener("click", closeKbdModal);
           $("kbdOverlay")?.addEventListener("click", (e) => {
