@@ -313,6 +313,9 @@
         margin-left: var(--sidebar-collapsed);
         width: calc(100% - var(--sidebar-collapsed));
       }
+      .sidebar.collapsed ~ .app-footer {
+        margin-left: var(--sidebar-collapsed);
+      }
       /* Tooltip shown when sidebar is collapsed */
       .sidebar.collapsed .nav-item {
         position: relative;
@@ -391,10 +394,34 @@
         transition: margin-left 0.25s ease;
       }
 
+      .app-footer {
+        margin-left: var(--sidebar-w);
+        padding: 12px 32px;
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: margin-left 0.25s ease;
+      }
+      .app-footer a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .app-footer a:hover {
+        text-decoration: underline;
+      }
+      .app-footer-sep {
+        opacity: 0.4;
+      }
+
       /* ===== FULL-SCREEN MODE (setup) ===== */
       .main-content.full-screen {
         margin-left: 0;
         width: 100%;
+      }
+      .main-content.full-screen ~ .app-footer {
+        margin-left: 0;
       }
       .sidebar.hidden {
         transform: translateX(-100%);
@@ -3337,6 +3364,11 @@
       </nav>
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
       <main class="main-content full-screen" id="mainContent"></main>
+      <footer class="app-footer">
+        <span>Made by <a href="https://yemzikk.in/" target="_blank" rel="noopener noreferrer">Yemzikk</a></span>
+        <span class="app-footer-sep">·</span>
+        <a href="https://buymeacoffee.com/yemzikk" target="_blank" rel="noopener noreferrer">Support this project</a>
+      </footer>
     </div>
 
     <script>
