@@ -313,9 +313,6 @@
         margin-left: var(--sidebar-collapsed);
         width: calc(100% - var(--sidebar-collapsed));
       }
-      .sidebar.collapsed ~ .app-footer {
-        margin-left: var(--sidebar-collapsed);
-      }
       /* Tooltip shown when sidebar is collapsed */
       .sidebar.collapsed .nav-item {
         position: relative;
@@ -395,14 +392,13 @@
       }
 
       .app-footer {
-        margin-left: var(--sidebar-w);
         padding: 12px 32px;
         font-size: 12px;
         color: var(--muted);
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
-        transition: margin-left 0.25s ease;
       }
       .app-footer a {
         color: var(--accent);
@@ -419,9 +415,6 @@
       .main-content.full-screen {
         margin-left: 0;
         width: 100%;
-      }
-      .main-content.full-screen ~ .app-footer {
-        margin-left: 0;
       }
       .sidebar.hidden {
         transform: translateX(-100%);
